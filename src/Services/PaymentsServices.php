@@ -29,47 +29,62 @@ class PaymentsServices
     function getPublicKey(): string
     {
         return $this->paymentsRepository->getPublicKey();
-    }
-
-    //ATE O MOMENTO É PERMITIDO ESTONAR APENAS O VALOR TOTAL
+    }    
 
     function cancelOrder($orderId)
-    {
-        $canceled = false;
+    {        
         try {
             DB::beginTransaction();
 
-            $order = DB::table('orders')->select(["charge_id", "total"])->where("id", "=", $orderId)->first();
+            $order = DB::table('orders')->select(["charge_id", "total"])->where("id", "=", $orderId)->first();            
 
-            $payload = (object)[
-                "chargeId" => $order->charge_id,
-                "price" => $this->formatPricePayload($order->total),
-            ];
+            if($order->payment_status == PaymentStatus::DISPONIVEL || $order->payment_status == PaymentStatus::PAGA) {
+                $chargeId = $order->charge_id;
 
-            Log::channel("information")->info("PaymentsServices.cancelOrder Estornando pagamento na instituição: " . $orderId);
-            $responseCancel = $this->paymentsRepository->cancelOrder($payload);
+                if($chargeId == null) {
+                    $orderBank = $this->paymentsRepository->getOrderPayment($order->transaction_code);
 
-            if ($responseCancel->status == "CANCELED") {
-                Log::channel("information")->info("PaymentsServices.cancelOrder Pagamento Estonado com sucesso na instituição: " . $orderId);
+                    if ($orderBank->charges != null) {                        
+                        $chargeId = $orderBank->charges[0]->id; 
+                    }else {
+                        Log::channel("information")->info("PaymentsServices.cancelOrder O pagamento na instituição ainda não permite estorno: " . $orderId);
+                        return false;
+                    }
+                }
 
-                $this->refundOrder($orderId);
+                $payload = (object)[
+                    "chargeId" => $chargeId,
+                    "price" => $this->formatPricePayload($order->total),
+                ];
 
-                DB::commit();
-                $canceled = true;
-            } else {
-                Log::channel("information")->info("PaymentsServices.cancelOrder Não foi possivel realizar o estorno na instituição: " . $orderId);
-            }
+                Log::channel("information")->info("PaymentsServices.cancelOrder Estornando pagamento na instituição: " . $orderId);
+                $responseCancel = $this->paymentsRepository->cancelOrder($payload);
+
+                if ($responseCancel->status == "CANCELED") {
+                    Log::channel("information")->info("PaymentsServices.cancelOrder Pagamento Estonado com sucesso na instituição: " . $orderId);
+    
+                    $this->refundOrder($orderId, $chargeId);
+    
+                    DB::commit();
+                    return true;
+                } else {
+                    Log::channel("information")->info("PaymentsServices.cancelOrder Não foi possivel realizar o estorno na instituição: " . $orderId);
+                    return false;
+                }
+                
+            }else {
+                Log::channel("information")->info("PaymentsServices.cancelOrder O status do pagamento na instituição não permite estorno: " . $orderId);
+                return false;
+            }            
         } catch (Exception $error) {
-            $canceled = false;
-
             DB::rollBack();
             Log::channel("exception")->error("PaymentsServices.cancelOrder Não foi possivel realizar o processo de estorno para o pagamento:" . $orderId . ". Erro: " . $error->getMessage());
-        }
 
-        return $canceled;
+            return false;
+        }        
     }
 
-    function refundOrder($orderId)
+    function refundOrder($orderId, $chargeId)
     {
         $productsOrder = DB::table("order_products")
             ->join("products_stock", "prod_cod", "=", "product_id")
@@ -90,7 +105,8 @@ class PaymentsServices
             ->where("id", "=", $orderId)
             ->update([
                 "payment_status" => PaymentStatus::CANCELADA,
-                "status" => OrderStatus::CANCELADO
+                "status" => OrderStatus::CANCELADO,
+                "charge_id" => $chargeId
             ]);
     }
 
@@ -266,17 +282,12 @@ class PaymentsServices
                     $statusPayment == OrderStatus::CANCELADO
                     && $order->status != OrderStatus::CANCELADO
                 ) {
-                    $this->refundOrder($orderId);
+                    $this->refundOrder($orderId, $order->charge_id);
                 } else {
                     $updateOrder = [
                         "status" => $statusPayment,
                         "payment_status" => $responsePayments->transaction->status
-                    ];
-
-                    Log::channel("information")->info("PaymentsServices.getPaymentStatus - Atualizando status do pedido: " . $orderId);
-                    DB::table("orders")
-                        ->where("id", "=", $orderId)
-                        ->update($updateOrder);
+                    ];                  
                 }
 
                 if ($orderBank != null) {
@@ -296,6 +307,11 @@ class PaymentsServices
                             );
                     }
                 }
+
+                Log::channel("information")->info("PaymentsServices.getPaymentStatus - Atualizando status do pedido: " . $orderId);
+                DB::table("orders")
+                    ->where("id", "=", $orderId)
+                    ->update($updateOrder);
 
                 DB::commit();
             }

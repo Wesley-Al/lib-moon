@@ -34,7 +34,7 @@ class NotificationService
                 $orderStatus == OrderStatus::CANCELADO
                 && $order->status != OrderStatus::CANCELADO
             ) {
-                $this->paymentsServices->refundOrder($order->id);
+                $this->paymentsServices->refundOrder($order->id, $order->charge_id);
             } else {
                 $updateOrder = [
                     "status" => $orderStatus,

@@ -36,7 +36,7 @@ class PaymentsServices
         try {
             DB::beginTransaction();
 
-            $order = DB::table('orders')->select(["charge_id", "total"])->where("id", "=", $orderId)->first();            
+            $order = DB::table('orders')->select(["charge_id", "total", "payment_status", "transaction_code"])->where("id", "=", $orderId)->first();            
 
             if($order->payment_status == PaymentStatus::DISPONIVEL || $order->payment_status == PaymentStatus::PAGA) {
                 $chargeId = $order->charge_id;

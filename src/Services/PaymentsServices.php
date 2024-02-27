@@ -31,16 +31,67 @@ class PaymentsServices
         return $this->paymentsRepository->getPublicKey();
     }
 
+    //ATE O MOMENTO É PERMITIDO ESTONAR APENAS O VALOR TOTAL
+
     function cancelOrder($orderId)
     {
-        $order = DB::table('orders')->select(["charge_id", "total"])->where("id", "=", $orderId)->first();
+        $canceled = false;
+        try {
+            DB::beginTransaction();
 
-        $payload = (object)[
-            "chargeId" => $order->charge_id,
-            "price" => $this->formatPricePayload($order->total),
-        ];
+            $order = DB::table('orders')->select(["charge_id", "total"])->where("id", "=", $orderId)->first();
 
-        return $this->paymentsRepository->cancelOrder($payload);
+            $payload = (object)[
+                "chargeId" => $order->charge_id,
+                "price" => $this->formatPricePayload($order->total),
+            ];
+
+            Log::channel("information")->info("PaymentsServices.cancelOrder Estornando pagamento na instituição: " . $orderId);
+            $responseCancel = $this->paymentsRepository->cancelOrder($payload);
+
+            if ($responseCancel->status == "CANCELED") {
+                Log::channel("information")->info("PaymentsServices.cancelOrder Pagamento Estonado com sucesso na instituição: " . $orderId);
+
+                $this->refundOrder($orderId);
+
+                DB::commit();
+                $canceled = true;
+            } else {
+                Log::channel("information")->info("PaymentsServices.cancelOrder Não foi possivel realizar o estorno na instituição: " . $orderId);
+            }
+        } catch (Exception $error) {
+            $canceled = false;
+
+            DB::rollBack();
+            Log::channel("exception")->error("PaymentsServices.cancelOrder Não foi possivel realizar o processo de estorno para o pagamento:" . $orderId . ". Erro: " . $error->getMessage());
+        }
+
+        return $canceled;
+    }
+
+    function refundOrder($orderId)
+    {
+        $productsOrder = DB::table("order_products")
+            ->join("products_stock", "prod_cod", "=", "product_id")
+            ->where("order_id", "=", $orderId)
+            ->get();
+
+        Log::channel("information")->info("PaymentsServices.refundOrder Iniciando retorno do estoque dos produtos: " . $orderId);
+        foreach ($productsOrder as $product) {
+            DB::table("products_stock")
+                ->where("prod_cod", "=", $product->product_id)
+                ->update([
+                    "stock" => ($product->stock + $product->quantity)
+                ]);
+        }
+
+        Log::channel("information")->info("PaymentsServices.refundOrder Iniciando atualizacao do status do pedido para CANCELADO: " . $orderId);
+        DB::table("orders")
+            ->where("id", "=", $orderId)
+            ->update([
+                "payment_status" => PaymentStatus::CANCELADA,
+                "status" => OrderStatus::CANCELADO
+            ]);
     }
 
     function getInstallmentsFees($totalPrice, $creditBin)
@@ -52,7 +103,7 @@ class PaymentsServices
             "creditBin" => $creditBin,
             "price" => $this->formatPricePayload($totalPrice)
         ];
-
+        
         $result = $this->paymentsRepository->getInstallmentsFees($payload);
 
         $arrayCard = json_decode(json_encode($result->payment_methods->credit_card), true);
@@ -75,11 +126,11 @@ class PaymentsServices
         try {
             $typePayment = $request->get("typePayment");
 
-            Log::channel("information")->info('Iniciando busca dos produtos do carrinho. CodeList: ' . $codList);
+            Log::channel("information")->info('PaymentsServices.createOrder Iniciando busca dos produtos do carrinho. CodeList: ' . $codList);
             $listProducts = $this->productRepository->searchListProducts($codList);
 
             if ($codList == "" || $codList == null || sizeof($listProducts) == 0) {
-                throw new Exception("Não é possivel realizar o pagamento sem produtos.");
+                throw new Exception("PaymentsServices.createOrder Não é possivel realizar o pagamento sem produtos.");
             }
 
             $payload = (array)json_decode($request->get("payload"));
@@ -95,7 +146,7 @@ class PaymentsServices
                 $productCart = $this->getProductPayload($product->prod_cod, $payload);
 
                 if ($productCart == null) {
-                    throw new Exception("O Produto " . $product->prod_cod . " não foi encontrado na base de dados ou não possui estoque o suficiente.");
+                    throw new Exception("PaymentsServices.createOrder O Produto " . $product->prod_cod . " não foi encontrado na base de dados ou não possui estoque o suficiente.");
                 } else {
                     $subTotal += $product->price * $productCart->qtd;
                     $totalDiscont += NumberUtils::calcDiscont($product->price, $product->discont) * $productCart->qtd;
@@ -126,24 +177,24 @@ class PaymentsServices
                 }
             }
 
-            Log::channel("information")->info('Realizando cotação do frete. User: ' . Auth::user()->id);
+            Log::channel("information")->info('PaymentsServices.createOrder Realizando cotação do frete. User: ' . Auth::user()->id);
             $payloadService = $this->shippingService->getShippingWithCode($request->get("cep"), $itemsShipping, $request->get("shipping"));
 
             $total += ($subTotal - $totalDiscont) + $payloadService->ShippingPrice;
             $dataOrder = $this->createPayload($request, $itemsPayload, $total, $typePayment);
 
-            Log::channel("information")->info('Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
+            Log::channel("information")->info('PaymentsServices.createOrder Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
             $dataPayment = $this->paymentsRepository->createOrder($dataOrder);
 
             //TRANSAÇÕES DO BANCO DE DADOS
-            Log::channel("information")->info('Realizando inserção de dados do frete. User: ' . Auth::user()->id);
+            Log::channel("information")->info('PaymentsServices.createOrder Realizando inserção de dados do frete. User: ' . Auth::user()->id);
             $shippingId = $this->insertShipping($request, $payloadService);
 
             if ($typePayment == "CARD") {
                 $chargeId = $dataPayment->charges[0]->id;
             }
 
-            Log::channel("information")->info('Realizando inserção de dados do pagamento. User: ' . Auth::user()->id);
+            Log::channel("information")->info('PaymentsServices.createOrder Realizando inserção de dados do pagamento. User: ' . Auth::user()->id);
             $orderId = DB::table("orders")
                 ->insertGetId([
                     "status" => OrderStatus::PENDENTE_PAGAMENTO,
@@ -165,7 +216,7 @@ class PaymentsServices
             $this->saveLogPaymentCard($typePayment, $orderId, $dataPayment);
             $this->savePixQrCode($typePayment, $orderId, $dataPayment);
 
-            Log::channel("information")->info('Realizando baixa do estoque por produto e vinculando produtos ao pagamento. User: ' . Auth::user()->id);
+            Log::channel("information")->info('PaymentsServices.createOrder Realizando baixa do estoque por produto e vinculando produtos ao pagamento. User: ' . Auth::user()->id);
             foreach ($itemsOrder as $product) {
 
                 DB::table("products_stock")
@@ -185,7 +236,7 @@ class PaymentsServices
 
             DB::commit();
 
-            Log::channel("information")->info('Pedido criado com sucesso!. User: ' . Auth::user()->id . " Pedido: " . $orderId);
+            Log::channel("information")->info('PaymentsServices.createOrder Pedido criado com sucesso!. User: ' . Auth::user()->id . " Pedido: " . $orderId);
             return $orderId;
         } catch (Exception $error) {
             Log::channel("exception")->error("PaymentsServices.createOrder: Ocorreu um erro na criação do pagamento: " . $error->getMessage());
@@ -200,9 +251,10 @@ class PaymentsServices
     {
         Log::channel("information")->info("PaymentsServices.getPaymentStatus - Consultando status do pagamento do pedido: " . $orderId);
         $statusPayment = OrderStatus::EM_ANALISE;
-
-        DB::beginTransaction();
+        
         try {
+            DB::beginTransaction();
+
             $order = DB::table("orders")->where("id", "=", $orderId)->first();
             $responsePayments = $this->paymentsRepository->getPaymentByReferenceId($order->referency_id);
 
@@ -210,10 +262,22 @@ class PaymentsServices
                 $statusPayment = PaymentsUtils::getStatus($responsePayments->transaction->status);
                 $orderBank = $this->paymentsRepository->getOrderPayment($order->transaction_code);
 
-                $updateOrder = [
-                    "status" => $statusPayment,
-                    "payment_status" => $responsePayments->transaction->status
-                ];
+                if (
+                    $statusPayment == OrderStatus::CANCELADO
+                    && $order->status != OrderStatus::CANCELADO
+                ) {
+                    $this->refundOrder($orderId);
+                } else {
+                    $updateOrder = [
+                        "status" => $statusPayment,
+                        "payment_status" => $responsePayments->transaction->status
+                    ];
+
+                    Log::channel("information")->info("PaymentsServices.getPaymentStatus - Atualizando status do pedido: " . $orderId);
+                    DB::table("orders")
+                        ->where("id", "=", $orderId)
+                        ->update($updateOrder);
+                }
 
                 if ($orderBank != null) {
                     if ($orderBank->charges != null) {
@@ -233,11 +297,6 @@ class PaymentsServices
                     }
                 }
 
-                Log::channel("information")->info("PaymentsServices.getPaymentStatus - Atualizando status do pedido: " . $orderId);
-                DB::table("orders")
-                    ->where("id", "=", $orderId)
-                    ->update($updateOrder);
-
                 DB::commit();
             }
         } catch (Exception $error) {
@@ -253,6 +312,7 @@ class PaymentsServices
 
     private function insertShipping(Request $request, $payloadService): int
     {
+         Log::channel("information")->info('PaymentsServices.savePixQrCode Realizando inserção de dados do Frete. User: ' . Auth::user()->id);
         return DB::table("order_shipping")
             ->insertGetId([
                 "total_shipping" => $payloadService->ShippingPrice,
@@ -333,7 +393,7 @@ class PaymentsServices
                 ],
                 "items" => $items,
                 "notification_urls" => [
-                    route('notification.callback')                    
+                    route('notification.callback')
                 ],
                 "shipping" => [
                     "address" => [
@@ -356,7 +416,7 @@ class PaymentsServices
                             "amount" => [
                                 "value" => $this->formatPricePayload($total)
                             ],
-                            "expiration_date" => now()->addMinutes(5)                            
+                            "expiration_date" => now()->addMinutes(5)
                         ]
                     ];
                     break;

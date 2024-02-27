@@ -1,6 +1,6 @@
 {
-    "name": "moontec/payments",
-    "description": "Gerenciador de payload para pagamentos",
+    "name": "moontec/lib-moon",
+    "description": "Library para requisições e regras em comum",
     "type": "library",
     "license": "GPL-3.0-or-later",
     "authors": [

@@ -202,8 +202,13 @@ class PaymentsServices
 
             if($typePayment == "CARD") {                
                 $charge = (object)$dataOrder->charges[0];         
+
+                if($charge->amount["fees"] != null) {                    
+                    $totalFees = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["fees"]["buyer"]["interest"]["total"])));
+                }
+                
                 $total = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["value"])));
-            }            
+            }           
 
             Log::channel("information")->info('PaymentsServices.createOrder Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
             $dataPayment = $this->paymentsRepository->createOrder($dataOrder);
@@ -222,6 +227,7 @@ class PaymentsServices
                     "status" => OrderStatus::PENDENTE_PAGAMENTO,
                     "payment_status" => PaymentStatus::AGUARDANDO_PAGAMENTO,
                     "total" => floatval($total),
+                    "total_fees" => $totalFees,
                     "subtotal" => floatval($subTotal),
                     "quantity" => $quantity,
                     "instalments" => intval($request->get("installments")) ?? 1,

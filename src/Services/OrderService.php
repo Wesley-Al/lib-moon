@@ -55,12 +55,14 @@ class OrderService {
             $totalProducts += $data->product_quantity;
         }
 
+        $total = $dataOrder[0]->order_total - $dataOrder[0]->total_shipping - $dataOrder[0]->total_fees;
+
         $order = (object)[
             "id" => $dataOrder[0]->order_id,
             "user_name" => $dataOrder[0]->user_name,
             "total" => NumberUtils::formatCurrency($dataOrder[0]->order_total),
             "subtotal" => NumberUtils::formatCurrency($dataOrder[0]->order_subtotal),
-            "discont" => NumberUtils::formatCurrency($dataOrder[0]->order_subtotal - ($dataOrder[0]->order_total - $dataOrder[0]->total_shipping)),
+            "discont" => NumberUtils::formatCurrency($dataOrder[0]->order_subtotal - $total),
             "status" => (object)[
                 "name" => $dataOrder[0]->order_status,
                 "color" => $dataOrder[0]->color,

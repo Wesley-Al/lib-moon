@@ -200,6 +200,11 @@ class PaymentsServices
             $total += ($subTotal - $totalDiscont) + $payloadService->ShippingPrice;
             $dataOrder = $this->createPayload($request, $itemsPayload, $total, $typePayment);
 
+            if($typePayment == "CARD") {                
+                $charge = (object)$dataOrder->charges[0];         
+                $total = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["value"])));
+            }            
+
             Log::channel("information")->info('PaymentsServices.createOrder Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
             $dataPayment = $this->paymentsRepository->createOrder($dataOrder);
 

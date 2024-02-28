@@ -107,6 +107,7 @@ class PaymentsServices
             ->update([
                 "payment_status" => PaymentStatus::CANCELADA,
                 "status" => OrderStatus::CANCELADO,
+                "update_at" => now(),
                 "charge_id" => $chargeId
             ]);
     }
@@ -198,17 +199,18 @@ class PaymentsServices
             $payloadService = $this->shippingService->getShippingWithCode($request->get("cep"), $itemsShipping, $request->get("shipping"));
 
             $total += ($subTotal - $totalDiscont) + $payloadService->ShippingPrice;
+            $totalFees = 0;
             $dataOrder = $this->createPayload($request, $itemsPayload, $total, $typePayment);
 
             if($typePayment == "CARD") {                
                 $charge = (object)$dataOrder->charges[0];         
 
-                if($charge->amount["fees"] != null) {                    
+                if(array_key_exists("fees", $charge->amount)) {                    
                     $totalFees = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["fees"]["buyer"]["interest"]["total"])));
                 }
                 
                 $total = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["value"])));
-            }           
+            }    
 
             Log::channel("information")->info('PaymentsServices.createOrder Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
             $dataPayment = $this->paymentsRepository->createOrder($dataOrder);
@@ -298,7 +300,8 @@ class PaymentsServices
                 } else {
                     $updateOrder = [
                         "status" => $statusPayment,
-                        "payment_status" => $responsePayments->transaction->status
+                        "payment_status" => $responsePayments->transaction->status,
+                        'update_at' => now()
                     ];                  
                 }
 

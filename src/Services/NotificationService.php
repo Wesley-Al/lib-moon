@@ -30,23 +30,6 @@ class NotificationService
             $orderStatus = PaymentsUtils::getStatus($notification->status);
             $orderBank = $this->paymentsRepository->getOrderPayment($order->transaction_code);;
 
-            if (
-                $orderStatus == OrderStatus::CANCELADO
-                && $order->status != OrderStatus::CANCELADO
-            ) {
-                $this->paymentsServices->refundOrder($order->id, $order->charge_id);
-            } else {
-                $updateOrder = [
-                    "status" => $orderStatus,
-                    "payment_status" => $notification->status
-                ];
-
-                Log::channel("information")->info("NotificationService.notificationProccess Atualizando status no Banco de Dados: " . $notification->reference);
-                DB::table("orders")
-                    ->where("id", "=", $notification->reference)
-                    ->update($updateOrder);
-            }
-
             if ($orderBank != null) {
                 if ($orderBank->charges != null) {
                     $charge = $orderBank->charges[0];
@@ -63,6 +46,24 @@ class NotificationService
                         );
                 }
             }
+
+            if (
+                $orderStatus == OrderStatus::CANCELADO
+                && $order->status != OrderStatus::CANCELADO
+            ) {
+                $this->paymentsServices->refundOrder($order->id, $order->charge_id);
+            } else {
+                $updateOrder = [
+                    "status" => $orderStatus,
+                    "payment_status" => $notification->status,
+                    "update_at" => now()
+                ];
+
+                Log::channel("information")->info("NotificationService.notificationProccess Atualizando status no Banco de Dados: " . $notification->reference);
+                DB::table("orders")
+                    ->where("id", "=", $notification->reference)                
+                    ->update($updateOrder);
+            }          
             
             DB::commit();
         } catch (Exception $error) {

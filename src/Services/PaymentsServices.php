@@ -29,25 +29,25 @@ class PaymentsServices
     function getPublicKey(): string
     {
         return $this->paymentsRepository->getPublicKey();
-    }    
+    }
 
     function cancelOrder($orderId)
-    {        
+    {
         try {
             DB::beginTransaction();
 
-            $order = DB::table('orders')->select(["charge_id", "total", "payment_status", "transaction_code"])->where("id", "=", $orderId)->first();            
+            $order = DB::table('orders')->select(["charge_id", "total", "payment_status", "transaction_code", "reversed"])->where("id", "=", $orderId)->first();
             $paymentStatus = PaymentStatus::from($order->payment_status);
 
-            if($paymentStatus == PaymentStatus::DISPONIVEL || $paymentStatus == PaymentStatus::PAGA) {
+            if ($paymentStatus == PaymentStatus::DISPONIVEL || $paymentStatus == PaymentStatus::PAGA) {
                 $chargeId = $order->charge_id;
 
-                if($chargeId == null) {
+                if ($chargeId == null) {
                     $orderBank = $this->paymentsRepository->getOrderPayment($order->transaction_code);
 
-                    if ($orderBank->charges != null) {                        
-                        $chargeId = $orderBank->charges[0]->id; 
-                    }else {
+                    if ($orderBank->charges != null) {
+                        $chargeId = $orderBank->charges[0]->id;
+                    } else {
                         Log::channel("information")->info("PaymentsServices.cancelOrder O pagamento na instituição ainda não permite estorno: " . $orderId);
                         return false;
                     }
@@ -63,53 +63,57 @@ class PaymentsServices
 
                 if ($responseCancel->status == "CANCELED") {
                     Log::channel("information")->info("PaymentsServices.cancelOrder Pagamento Estonado com sucesso na instituição: " . $orderId);
-    
-                    $this->refundOrder($orderId, $chargeId);
-    
+
+                    $this->refundOrder($orderId, $chargeId, (bool)$order->reversed);
+
                     DB::commit();
                     return true;
                 } else {
                     Log::channel("information")->info("PaymentsServices.cancelOrder Não foi possivel realizar o estorno na instituição: " . $orderId);
                     return false;
                 }
-                
-            }else {
+            } else {
                 Log::channel("information")->info("PaymentsServices.cancelOrder O status do pagamento na instituição não permite estorno: " . $orderId);
                 return false;
-            }            
+            }
         } catch (Exception $error) {
             DB::rollBack();
             Log::channel("exception")->error("PaymentsServices.cancelOrder Não foi possivel realizar o processo de estorno para o pagamento:" . $orderId . ". Erro: " . $error->getMessage());
 
             return false;
-        }        
+        }
     }
 
-    function refundOrder($orderId, $chargeId)
+    function refundOrder($orderId, $chargeId, $reversed)
     {
-        $productsOrder = DB::table("order_products")
-            ->join("products_stock", "prod_cod", "=", "product_id")
-            ->where("order_id", "=", $orderId)
-            ->get();
+        if (!$reversed) {
+            $productsOrder = DB::table("order_products")
+                ->join("products_stock", "prod_cod", "=", "product_id")
+                ->where("order_id", "=", $orderId)
+                ->get();
 
-        Log::channel("information")->info("PaymentsServices.refundOrder Iniciando retorno do estoque dos produtos: " . $orderId);
-        foreach ($productsOrder as $product) {
-            DB::table("products_stock")
-                ->where("prod_cod", "=", $product->product_id)
+            Log::channel("information")->info("PaymentsServices.refundOrder Iniciando retorno do estoque dos produtos: " . $orderId);
+            foreach ($productsOrder as $product) {
+                DB::table("products_stock")
+                    ->where("prod_cod", "=", $product->product_id)
+                    ->update([
+                        "stock" => ($product->stock + $product->quantity)
+                    ]);
+            }
+
+            Log::channel("information")->info("PaymentsServices.refundOrder Iniciando atualizacao do status do pedido para CANCELADO: " . $orderId);
+            DB::table("orders")
+                ->where("id", "=", $orderId)
                 ->update([
-                    "stock" => ($product->stock + $product->quantity)
+                    "payment_status" => PaymentStatus::CANCELADA,
+                    "status" => OrderStatus::CANCELADO,
+                    "update_at" => now(),
+                    "charge_id" => $chargeId,
+                    "reversed" => true
                 ]);
+        } else {
+            Log::channel("information")->info("PaymentsServices.refundOrder O Pedido ja foi estornado: " . $orderId);
         }
-
-        Log::channel("information")->info("PaymentsServices.refundOrder Iniciando atualizacao do status do pedido para CANCELADO: " . $orderId);
-        DB::table("orders")
-            ->where("id", "=", $orderId)
-            ->update([
-                "payment_status" => PaymentStatus::CANCELADA,
-                "status" => OrderStatus::CANCELADO,
-                "update_at" => now(),
-                "charge_id" => $chargeId
-            ]);
     }
 
     function getInstallmentsFees($totalPrice, $creditBin)
@@ -121,7 +125,7 @@ class PaymentsServices
             "creditBin" => $creditBin,
             "price" => $this->formatPricePayload($totalPrice)
         ];
-        
+
         $result = $this->paymentsRepository->getInstallmentsFees($payload);
 
         $arrayCard = json_decode(json_encode($result->payment_methods->credit_card), true);
@@ -202,15 +206,15 @@ class PaymentsServices
             $totalFees = 0;
             $dataOrder = $this->createPayload($request, $itemsPayload, $total, $typePayment);
 
-            if($typePayment == "CARD") {                
-                $charge = (object)$dataOrder->charges[0];         
+            if ($typePayment == "CARD") {
+                $charge = (object)$dataOrder->charges[0];
 
-                if(array_key_exists("fees", $charge->amount)) {                    
+                if (array_key_exists("fees", $charge->amount)) {
                     $totalFees = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["fees"]["buyer"]["interest"]["total"])));
                 }
-                
+
                 $total = floatval(preg_replace('/(\d{2})$/', ".$1", str($charge->amount["value"])));
-            }    
+            }
 
             Log::channel("information")->info('PaymentsServices.createOrder Iniciando chamada da API para realizar o pagamento. User: ' . Auth::user()->id);
             $dataPayment = $this->paymentsRepository->createOrder($dataOrder);
@@ -281,7 +285,7 @@ class PaymentsServices
     {
         Log::channel("information")->info("PaymentsServices.getPaymentStatus - Consultando status do pagamento do pedido: " . $orderId);
         $statusPayment = OrderStatus::EM_ANALISE;
-        
+
         try {
             DB::beginTransaction();
 
@@ -296,13 +300,13 @@ class PaymentsServices
                     $statusPayment == OrderStatus::CANCELADO
                     && $order->status != OrderStatus::CANCELADO
                 ) {
-                    $this->refundOrder($orderId, $order->charge_id);
+                    $this->refundOrder($orderId, $order->charge_id, (bool)$order->reversed);
                 } else {
                     $updateOrder = [
                         "status" => $statusPayment,
                         "payment_status" => $responsePayments->transaction->status,
                         'update_at' => now()
-                    ];                  
+                    ];
                 }
 
                 if ($orderBank != null) {
@@ -343,7 +347,7 @@ class PaymentsServices
 
     private function insertShipping(Request $request, $payloadService): int
     {
-         Log::channel("information")->info('PaymentsServices.savePixQrCode Realizando inserção de dados do Frete. User: ' . Auth::user()->id);
+        Log::channel("information")->info('PaymentsServices.savePixQrCode Realizando inserção de dados do Frete. User: ' . Auth::user()->id);
         return DB::table("order_shipping")
             ->insertGetId([
                 "total_shipping" => $payloadService->ShippingPrice,

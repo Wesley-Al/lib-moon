@@ -51,7 +51,7 @@ class NotificationService
                 $orderStatus == OrderStatus::CANCELADO
                 && $order->status != OrderStatus::CANCELADO
             ) {
-                $this->paymentsServices->refundOrder($order->id, $order->charge_id);
+                $this->paymentsServices->refundOrder($order->id, $order->charge_id, (bool)$order->reversed);
             } else {
                 $updateOrder = [
                     "status" => $orderStatus,
@@ -61,10 +61,10 @@ class NotificationService
 
                 Log::channel("information")->info("NotificationService.notificationProccess Atualizando status no Banco de Dados: " . $notification->reference);
                 DB::table("orders")
-                    ->where("id", "=", $notification->reference)                
+                    ->where("id", "=", $notification->reference)
                     ->update($updateOrder);
-            }          
-            
+            }
+
             DB::commit();
         } catch (Exception $error) {
             Log::channel("exception")->error("NotificationService.notificationProccess: Ocorreu um erro no processamento: " . $error->getMessage());

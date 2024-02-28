@@ -14,6 +14,7 @@ class OrderService {
             ->select(
                 "*",
                 
+                "O.update_at as order_update_at",
                 "O.total as order_total",
                 "O.subtotal as order_subtotal",
                 "O.id as order_id",                
@@ -69,6 +70,7 @@ class OrderService {
                 "id" => $dataOrder[0]->status_id
             ],
             "create_at" => Carbon::parse($dataOrder[0]->order_create)->format("d/m/Y"),
+            "update_at" => $dataOrder[0]->order_update_at,
             "tracking" => $dataOrder[0]->tracking,
             "total_shipping" => NumberUtils::formatCurrency($dataOrder[0]->total_shipping),
             "nf_path" => $dataOrder[0]->nf_path,

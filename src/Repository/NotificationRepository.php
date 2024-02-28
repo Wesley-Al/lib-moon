@@ -2,6 +2,7 @@
 
 namespace Moontec\Repository;
 
+use App\Domains\Log\Model\Builder\Log;
 use Moontec\Utils\RequestUtils;
 use GuzzleHttp\Client;
 

@@ -19,7 +19,7 @@ class CronService
     public function updatePaymentAwaitPay()
     {
         try {
-            Log::channel("exception")->info("CronService.updatePaymentAwaitPay Iniciando cron para atualização dos pedidos aguardando pagamento");
+            Log::channel("information")->info("CronService.updatePaymentAwaitPay Iniciando cron para atualização dos pedidos aguardando pagamento");
             DB::beginTransaction();
 
             $updateAt = now();
@@ -30,7 +30,7 @@ class CronService
 
             $ordersBank = $this->paymentsRepository->getListPayments($dateMin, now());
 
-            Log::channel("exception")->info("CronService.updatePaymentAwaitPay Foram encontrados " . sizeof($orders) . " pedidos aguardando pagamento");
+            Log::channel("information")->info("CronService.updatePaymentAwaitPay Foram encontrados " . sizeof($orders) . " pedidos aguardando pagamento");
 
             foreach ($orders as $order) {
                 $subArray = [];
@@ -61,7 +61,7 @@ class CronService
             }
 
             DB::commit();
-            Log::channel("exception")->info("CronService.updatePaymentAwaitPay Finalizando cron com Sucesso!");
+            Log::channel("information")->info("CronService.updatePaymentAwaitPay Finalizando cron com Sucesso!");
         } catch (Exception $error) {
             DB::rollBack();
             Log::channel("exception")->info("CronService.updatePaymentAwaitPay Ocorreu um erro durante o processo de atualizaco dos pagamentos pendentes: " . $error->getMessage());

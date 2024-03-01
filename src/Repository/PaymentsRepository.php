@@ -2,6 +2,7 @@
 
 namespace Moontec\Repository;
 
+use Carbon\Carbon;
 use Moontec\Utils\RequestUtils;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +28,17 @@ class PaymentsRepository
     {        
         $request = RequestUtils::createRequest($this->authRepository, null);
         $response = $this->client->request('GET', $this->endpointPayments . "api/payments/" . $referenceId, $request);        
+
+        return json_decode($response->getBody());
+    }
+
+    function getListPayments($dataMin, $dataMax)
+    {        
+        $dataMin = Carbon::parse($dataMin)->format("Y-m-d")."T00:00:00";
+        $dataMax = Carbon::parse($dataMax)->format("Y-m-d")."T".Carbon::parse($dataMax)->format("H:i:s");
+        
+        $request = RequestUtils::createRequest($this->authRepository, null);
+        $response = $this->client->request('GET', $this->endpointPayments . "api/payments/list?minDate=".$dataMin."&maxDate=".$dataMax, $request);        
 
         return json_decode($response->getBody());
     }

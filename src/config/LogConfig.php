@@ -1,6 +1,6 @@
 <?php
 
-namespace Moontec\Config;
+namespace Moontec\Config; 
 
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;

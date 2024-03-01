@@ -1,4 +1,7 @@
 <?php
+
+namespace Moontec\Config;
+
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;

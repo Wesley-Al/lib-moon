@@ -19,7 +19,7 @@ class CronService
     public function updatePaymentAwaitPay()
     {
         try {
-            Log::channel("information")->info("CronService.updatePaymentAwaitPay Iniciando CRON para atualização dos pedidos AGUARDANDO PAGAMENTO");
+            Log::channel("cronjob")->info("CronService.updatePaymentAwaitPay Iniciando CRON para atualização dos pedidos AGUARDANDO PAGAMENTO");
             DB::beginTransaction();
 
             $updateAt = now();
@@ -30,33 +30,41 @@ class CronService
 
             $ordersBank = $this->paymentsRepository->getListPayments($dateMin, now());
 
-            Log::channel("information")->info("CronService.updatePaymentAwaitPay Foram encontrados " . sizeof($orders) . " pedidos AGUARDANDO PAGAMENTO");
+            Log::channel("cronjob")->info("CronService.updatePaymentAwaitPay Foram encontrados " . sizeof($orders) . " pedidos AGUARDANDO PAGAMENTO");
 
             foreach ($orders as $order) {
                 $subArray = [];                
+                $orderStatus = null;
+                $paymentStatus = null;
 
                 $data = array_filter($ordersBank->transactions->transaction, function ($dataBank) use ($order) {
                     return $order->referency_id == $dataBank->reference;
                 });
 
                 if (sizeof($data) != 0) {
-                    array_push($subArray, array_shift($data));                    
+                    array_push($subArray, array_shift($data));
 
-                    DB::table("orders")
+                    $orderStatus = PaymentsUtils::getStatus($subArray[0]->status);
+                    $paymentStatus = PaymentStatus::from($subArray[0]->status);
+                } else {
+                    $orderStatus = OrderStatus::CANCELADO;
+                    $paymentStatus = PaymentStatus::CANCELADA;
+                }
+
+                DB::table("orders")
                     ->where("id", "=", $order->id)
                     ->update([
-                        "status" => PaymentsUtils::getStatus($subArray[0]->status),
-                        "payment_status" => PaymentStatus::from($subArray[0]->status),
+                        "status" => $orderStatus,
+                        "payment_status" => $paymentStatus,
                         "update_at" => $updateAt
                     ]);
-                }                 
             }
 
             DB::commit();
-            Log::channel("information")->info("CronService.updatePaymentAwaitPay Finalizando CRON com Sucesso!");
+            Log::channel("cronjob")->info("CronService.updatePaymentAwaitPay Finalizando CRON com Sucesso!");
         } catch (Exception $error) {
             DB::rollBack();
-            Log::channel("exception")->info("CronService.updatePaymentAwaitPay Ocorreu um erro durante o processo de atualização dos PAGAMENTOS PENDENTES: " . $error->getMessage());
+            Log::channel("cronjob")->info("CronService.updatePaymentAwaitPay Ocorreu um erro durante o processo de atualização dos PAGAMENTOS PENDENTES: " . $error->getMessage());
         }
     }
 }

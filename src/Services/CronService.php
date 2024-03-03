@@ -12,7 +12,7 @@ use Moontec\Repository\PaymentsRepository;
 
 class CronService
 {
-    public function __construct(protected PaymentsRepository $paymentsRepository)
+    public function __construct(protected PaymentsRepository $paymentsRepository, protected PaymentsServices $paymentsServices)
     {
     }
 
@@ -51,13 +51,17 @@ class CronService
                     $paymentStatus = PaymentStatus::CANCELADA;
                 }
 
-                DB::table("orders")
+                if($orderStatus == OrderStatus::CANCELADO) {
+                    $this->paymentsServices->refundOrder($order->id, $order->charge_id, $order->reversed);
+                }else {
+                    DB::table("orders")
                     ->where("id", "=", $order->id)
                     ->update([
                         "status" => $orderStatus,
                         "payment_status" => $paymentStatus,
                         "update_at" => $updateAt
                     ]);
+                }                
             }
 
             DB::commit();

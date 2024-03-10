@@ -18,18 +18,12 @@ class NumberUtils extends Utils
     }
 
     public static function calcPercent($price, $percent)
-    {        
-        return $price - $price * NumberUtils::formatCalcPercent($percent);
+    {   
+        return $price - NumberUtils::calcDiscont($price, $percent);
     }
 
     public static function calcDiscont($price, $percent)
     {        
-        return $price * NumberUtils::formatCalcPercent($percent);
-    }
-
-    public static function formatCalcPercent($percent)
-    {
-        $valuePercent = str_pad(str_replace(".", "", strval($percent)), 2, "0", STR_PAD_LEFT);
-        return floatval('0.' . $valuePercent);
-    }
+        return $percent/100 * $price;
+    }   
 }

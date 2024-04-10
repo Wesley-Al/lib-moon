@@ -524,8 +524,7 @@ class PaymentsServices
                 ],
                 "items" => $items,
                 "notification_urls" => [
-                    //route('notification.callback')
-                    'https://38c3-2804-1884-ca-25-00-3.ngrok-free.app/api/notification'
+                    route('notification.callback')
                 ],
                 "shipping" => [
                     "address" => [

@@ -11,6 +11,7 @@ use Moontec\Utils\PaymentsUtils;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -139,7 +140,7 @@ class PaymentsServices
         return $instalmentsFees;
     }
 
-    function createOrder(Request $request, $codList)
+    function createOrder(Request $request)
     {
         DB::beginTransaction();
         $dataPayment = null;
@@ -147,14 +148,6 @@ class PaymentsServices
 
         try {
             $typePayment = $request->get("typePayment");
-
-            Log::channel("information")->info('PaymentsServices.createOrder Iniciando busca dos produtos do carrinho. CodeList: ' . $codList);
-            $listProducts = $this->productRepository->searchListProducts($codList);
-
-            if ($codList == "" || $codList == null || sizeof($listProducts) == 0) {
-                throw new Exception("PaymentsServices.createOrder Não é possivel realizar o pagamento sem produtos.");
-            }
-
             $payload = (array)json_decode($request->get("payload"));
             $itemsPayload = array();
             $itemsOrder = array();
@@ -164,8 +157,15 @@ class PaymentsServices
             $totalDiscont = 0;
             $quantity = 0;
 
+            Log::channel("information")->info('PaymentsServices.createOrder Iniciando busca dos produtos do carrinho.');
+            $listProducts = $this->getProductsVariables($payload);            
+
+            if (sizeof($listProducts) == 0) {
+                throw new Exception("PaymentsServices.createOrder Não é possivel realizar o pagamento sem produtos.");
+            }
+
             foreach ($listProducts->all() as $product) {
-                $productCart = $this->getProductPayload($product->prod_cod, $payload);
+                $productCart = $this->getProductPayload($product->stock_cod, $payload);
 
                 if ($productCart == null) {
                     throw new Exception("PaymentsServices.createOrder O Produto " . $product->prod_cod . " não foi encontrado na base de dados ou não possui estoque o suficiente.");
@@ -175,14 +175,22 @@ class PaymentsServices
                     $quantity += $productCart->qtd;
 
                     array_push($itemsPayload,  [
-                        "reference_id" => $product->prod_cod,
-                        "name" => $product->name,
+                        "reference_id" => $product->prod_cod."-".$product->variable_cod."-".$product->stock_cod,
+                        "name" => $product->name.$product->variable_name.$product->stock_name,
                         "quantity" => $productCart->qtd,
                         "unit_amount" => $this->formatPricePayload(NumberUtils::calcPercent($product->price, $product->discont)),
                     ]);
 
                     array_push($itemsOrder,  (object)[
                         "product_id" => $product->prod_cod,
+                        "variable_cod" => $product->variable_cod,
+                        "stock_cod" => $product->stock_cod,
+
+                        "imgProd" => $product->img_list != null ? explode(",", $product->img_list)[0] : "",
+                        "prodName" => $product->name,
+                        "variableName" => $product->variable_name,                        
+                        "stockName" => $product->stock_name,
+
                         "quantity" => $productCart->qtd,
                         "total" => NumberUtils::calcPercent($product->price, $product->discont) * $productCart->qtd,
                         "subtotal" => $product->price * $productCart->qtd,
@@ -194,6 +202,8 @@ class PaymentsServices
 
                     array_push($itemsShipping, [
                         "prodCod" => $product->prod_cod,
+                        "variableCod" => $product->variable_cod,
+                        "stockCod" => $product->stock_cod,
                         "quantity" => $productCart->qtd
                     ]);
                 }
@@ -254,11 +264,19 @@ class PaymentsServices
             foreach ($itemsOrder as $product) {
 
                 DB::table("products_stock")
-                    ->where("prod_cod", "=", $product->product_id)
+                    ->where("id", "=", $product->stock_cod)
                     ->update(["stock" => $product->stock - $product->quantity]);
 
                 DB::table("order_products")->insert([
                     "product_id" => $product->product_id,
+                    "variable_cod" => $product->variable_cod,
+                    "stock_cod" => $product->stock_cod,
+
+                    "img_prod" => $product->imgProd,
+                    "prod_name" => $product->prodName,
+                    "variable_name" => $product->variableName,                        
+                    "stock_name" => $product->stockName,
+                    
                     "quantity" => $product->quantity,
                     "total" => $product->total,
                     "subtotal" => $product->subtotal,
@@ -341,6 +359,84 @@ class PaymentsServices
 
         Log::channel("information")->info("PaymentsServices.getPaymentStatus - Pedido " . $orderId . " com status " . $statusPayment->name);
         return $statusPayment;
+    }
+
+    function checkout(Request $request) {
+        try {
+            $jsonCart = $request->get("payload");
+            $payload = (array)json_decode($jsonCart);
+
+            $listProducts = $this->getProductsVariables($payload);
+
+            $sizeOfProdcuts = sizeof($listProducts);
+
+            if ($sizeOfProdcuts == 0) {
+                Log::channel("exception")->error("PaymentsServices.checkout Não foram encontrados produtos para a compra: " . $jsonCart);
+                return redirect("/")->withErrors(["error" => "Não foram encontrados produtos para a compra."]);
+            } else {
+
+                $productsView = [];
+                $subTotal = 0;
+                $total = 0;
+                $totalDiscont = 0;
+
+                foreach ($listProducts->all() as $product) {
+                    $productCart = $this->getProductPayload($product->stock_cod, $payload);
+
+                    if ($productCart == null) {
+                        Log::channel("exception")->error("PaymentsServices.checkout O seguinte produto nao foi encontrado no payload: " . $product->prod_cod);
+                        return redirect("/")->withErrors(["error" => "Não foram encontrados produtos para a compra."]);
+                    } else {
+                        $price = NumberUtils::calcPercent($product->price, $product->discont);
+
+                        array_push($productsView, [
+                            "prodCod" => $product->prod_cod,
+                            "img_list" => $product->img_list != null ? explode(",", $product->img_list)[0] : "",
+                            "name" => $product->name,
+                            "totalPrice" => $price * $productCart->qtd,
+                            "price" => $product->price,
+                            "stock" => $product->stock,
+                            "discont" => $product->discont,
+                            "quantity" => $productCart->qtd,
+                            "variableName" => $product->variable_name,
+                            "variableCod" => $product->variable_cod,
+                            "stockName" => $product->stock_name,
+                            "stockCod" => $product->stock_cod
+                        ]);
+
+                        $subTotal += $product->price * $productCart->qtd;
+                        $totalDiscont += $productCart->qtd * NumberUtils::calcDiscont($product->price, $product->discont);
+                    }
+                }
+
+                $total += $subTotal - $totalDiscont;
+
+                $summary = (object)[
+                    "subTotal" => $subTotal,
+                    "total" => $total,
+                    "sizeOfProdcuts" => $sizeOfProdcuts,
+                    "totalDiscont" => $totalDiscont,
+                    "payload" => $payload,
+                    "publicKey" => $this->getPublicKey()
+                ];
+
+                $user = Auth::user();
+                $shipping = $this->shippingService->getShipping($user->cep, $productsView);
+
+                return view("checkout", [
+                    "products" => $productsView,
+                    "summary" => $summary,
+                    "user" => $user,
+                    "shipping" => $shipping,
+                    "instalmentsConfig" => Cache::get("general")["config"]->instalments_not_fees
+                ]);
+            }
+        } catch (Exception $e) {
+            Log::error("PaymentsServices.checkout: " . $e);
+            Log::channel("exception")->error("PaymentsServices.checkout: " . $e->getMessage());
+
+            throw $e;
+        }
     }
 
     //FUNCOES PRIVADAS
@@ -428,7 +524,8 @@ class PaymentsServices
                 ],
                 "items" => $items,
                 "notification_urls" => [
-                    route('notification.callback')
+                    //route('notification.callback')
+                    'https://38c3-2804-1884-ca-25-00-3.ngrok-free.app/api/notification'
                 ],
                 "shipping" => [
                     "address" => [
@@ -491,19 +588,6 @@ class PaymentsServices
         }
     }
 
-    private function getProductPayload(string $prodCod, array $listProduct)
-    {
-        $response = null;
-        foreach ($listProduct as $product) {
-            if ($product->prodCod == $prodCod) {
-                $response = $product;
-                break;
-            }
-        }
-
-        return $response;
-    }
-
     private function formatPricePayload($value)
     {
         $value = number_format($value, 2);
@@ -516,4 +600,42 @@ class PaymentsServices
 
         return $valueExplode[0] . $valueFloat;
     }
+
+    private function getProductPayload(string $stockCod, array $listProduct)
+    {
+        foreach ($listProduct as $product) {
+            if ($product->stockCod == $stockCod) {
+                return $product;
+            }
+        }
+    }
+
+    private function getProductsVariables($payload):Collection
+    {
+        $stockListCod = [];
+        $variableListCod = [];
+
+        if (sizeof($payload) > 0) {
+            $stockListCod = array_map((function ($data) {
+                return $data->stockCod;
+            }), $payload);
+
+            $variableListCod = array_map((function ($data) {
+                return $data->variableCod;
+            }), $payload);
+        } else {
+            $message = "PaymentsServices.checkout Não foram encontrados produtos para a compra: " . json_encode($payload);
+            Log::channel("exception")->error($message);
+            throw new Exception($message);
+        }
+
+        return DB::table("products as P")
+            ->select(["*", "PS.id as stock_cod"])
+            ->join("products_variables as PV", "PV.prod_cod", "=", "P.id")
+            ->join("products_stock as PS", "PS.variable_cod", "=", "PV.id")
+            ->whereIn("PV.id", $variableListCod)
+            ->whereIn("PS.id", $stockListCod)
+            ->where("PS.stock", ">", 0)
+            ->get();
+    }    
 }

@@ -50,7 +50,11 @@ class OrderService {
                 "price" => NumberUtils::formatCurrency($data->product_order_total / $data->product_quantity),
                 "total_price" => NumberUtils::formatCurrency($data->product_order_total),
                 "name" => $data->product_name,
-                "img_list" => $data->img_list
+                "img_list" => $data->img_prod,
+                "variable_name" => $data->variable_name,
+                "stock_name" => $data->stock_name,
+                "variable_cod" => $data->variable_cod,
+                "stock_cod" => $data->stock_cod
             ]);
 
             $totalProducts += $data->product_quantity;

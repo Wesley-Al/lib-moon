@@ -105,7 +105,7 @@ class ProductServices
     {
         $fileNames = [];
         $fileNamesUpload = [];
-        $size = 5;        
+        $size = 6;        
 
         DB::beginTransaction();
 

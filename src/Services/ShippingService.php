@@ -114,7 +114,7 @@ class ShippingService
             if($result > $resultPackage){
                 $packageQtd += 1;
             }
-        }        
+        }
 
         return (object)[
             "SellerCEP" => $config->company_cep,
@@ -139,8 +139,7 @@ class ShippingService
         $qtd = 0;        
         foreach ($list as $prod) {
             if ($prod["prodCod"] == $prodCod) {
-                $qtd = intval($prod["quantity"]);                
-                break;
+                $qtd = intval($prod["quantity"]);
             }
         }
 

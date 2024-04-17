@@ -28,7 +28,7 @@ class CronService
             $orders = DB::table("orders as O")
                 ->where("status", "=", OrderStatus::PENDENTE_PAGAMENTO)->get();
 
-            $ordersBank = $this->paymentsRepository->getListPayments($dateMin, now());
+            $ordersBank = $this->paymentsRepository->getListPayments($dateMin, now());            
 
             Log::channel("cronjob")->info("CronService.updatePaymentAwaitPay Foram encontrados " . sizeof($orders) . " pedidos AGUARDANDO PAGAMENTO");
 
@@ -37,7 +37,7 @@ class CronService
                 $orderStatus = null;
                 $paymentStatus = null;
 
-                $data = array_filter($ordersBank->transactions->transaction, function ($dataBank) use ($order) {
+                $data = array_filter($ordersBank->transactions, function ($dataBank) use ($order) {
                     return $order->referency_id == $dataBank->reference;
                 });
 

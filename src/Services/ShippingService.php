@@ -36,7 +36,9 @@ class ShippingService
             return (object)[
                 "ShippingPrice" => 0,
                 "DeliveryTime" => 10,
-                "ServiceDescription" => "RETIRADA"
+                "ServiceDescription" => "RETIRADA",
+                "ServiceCode" => "00",
+                "Carrier" => "00"
             ];       
         }else {
             $payload = $this->getQuote($cepClient, $products);   

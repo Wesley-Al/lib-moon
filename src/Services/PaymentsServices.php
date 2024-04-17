@@ -190,7 +190,8 @@ class PaymentsServices
                         "prodName" => $product->name,
                         "variableName" => $product->variable_name,                        
                         "stockName" => $product->stock_name,
-
+                        
+                        "phrase" => $productCart->phrase,
                         "quantity" => $productCart->qtd,
                         "total" => NumberUtils::calcPercent($product->price, $product->discont) * $productCart->qtd,
                         "subtotal" => $product->price * $productCart->qtd,
@@ -276,6 +277,7 @@ class PaymentsServices
                     "prod_name" => $product->prodName,
                     "variable_name" => $product->variableName,                        
                     "stock_name" => $product->stockName,
+                    "phrase" => $product->phrase,                        
                     
                     "quantity" => $product->quantity,
                     "total" => $product->total,
@@ -392,16 +394,18 @@ class PaymentsServices
                         array_push($productsView, [
                             "prodCod" => $product->prod_cod,
                             "img_list" => $product->img_list != null ? explode(",", $product->img_list)[0] : "",
-                            "name" => $product->name,
-                            "totalPrice" => $price * $productCart->qtd,
+                            "name" => $product->name,                                                        
                             "price" => $product->price,
                             "stock" => $product->stock,
-                            "discont" => $product->discont,
-                            "quantity" => $productCart->qtd,
+                            "discont" => $product->discont,                          
                             "variableName" => $product->variable_name,
                             "variableCod" => $product->variable_cod,
                             "stockName" => $product->stock_name,
-                            "stockCod" => $product->stock_cod
+                            "stockCod" => $product->stock_cod,
+
+                            "totalPrice" => $price * $productCart->qtd,
+                            "quantity" => $productCart->qtd,
+                            "phrase" => $productCart->phrase,
                         ]);
 
                         $subTotal += $product->price * $productCart->qtd;
@@ -449,6 +453,8 @@ class PaymentsServices
                 "total_shipping" => $payloadService->ShippingPrice,
                 "date_previous" => now()->addDays($payloadService->DeliveryTime),
                 "type_shipping" => $payloadService->ServiceDescription,
+                "service_code" => $payloadService->ServiceCode,
+                "carrier" => $payloadService->Carrier,
 
                 "address" => $request->get("address"),
                 "addressNumber" => $request->get("addressNumber"),
@@ -524,7 +530,7 @@ class PaymentsServices
                 ],
                 "items" => $items,
                 "notification_urls" => [
-                    route('notification.callback')
+                    route('notification.callback')                    
                 ],
                 "shipping" => [
                     "address" => [

@@ -54,7 +54,8 @@ class OrderService {
                 "variable_name" => $data->variable_name,
                 "stock_name" => $data->stock_name,
                 "variable_cod" => $data->variable_cod,
-                "stock_cod" => $data->stock_cod
+                "stock_cod" => $data->stock_cod,
+                "phrase" => $data->phrase
             ]);
 
             $totalProducts += $data->product_quantity;
@@ -81,8 +82,11 @@ class OrderService {
             "method_payment_id" => $dataOrder[0]->method_payment_id,
             "payment_name" => $dataOrder[0]->payment_name,
             "quantity" => $dataOrder[0]->order_quantity,       
-            "address" => $dataOrder[0]->address . ", " . $dataOrder[0]->addressNumber,
+            "address" => $dataOrder[0]->address . ", " . $dataOrder[0]->addressNumber . ", " . $dataOrder[0]->neighborhood,
             "addressCity" => $dataOrder[0]->city . ", " . $dataOrder[0]->state . " - " . $dataOrder[0]->cep,
+            "type_shipping" => $dataOrder[0]->type_shipping,
+            "tracking_shipping" => $dataOrder[0]->service_code . " - ". $dataOrder[0]->carrier ." - ". $dataOrder[0]->type_shipping . " " . NumberUtils::formatCurrency($dataOrder[0]->total_shipping),
+            "complement" => $dataOrder[0]->complement,
             "totalProducts" => $totalProducts,            
         ];
 

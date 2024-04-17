@@ -248,18 +248,23 @@ class ProductServices
      private function rearrangeImages($nameImages, $principalImg)
      {
          $response = [];
-         $arrayPrincipalImage = array_filter($nameImages, function ($name) use ($principalImg) {
-             return Str::contains($name, $principalImg);
-         });
- 
-         //SALVA PRIMEIRO A IMAGEM PRINCIPAL
-         array_push($response, array_shift($arrayPrincipalImage));
+
+         if($principalImg != "" && $principalImg != null) {
+            $arrayPrincipalImage = array_filter($nameImages, function ($name) use ($principalImg) {
+                return Str::contains($name, $principalImg);
+            });
+   
+            Log::info($principalImg);
+    
+            //SALVA PRIMEIRO A IMAGEM PRINCIPAL
+            array_push($response, array_shift($arrayPrincipalImage));
+         }         
  
          //SALVA AS DEMAIS IMAGENS
          $response = array_merge($response, array_filter($nameImages, function ($name) use ($principalImg) {
              return !Str::contains($name, $principalImg);
-         }));
- 
+         }));                   
+
          return $response;
      }
 }

@@ -30,7 +30,7 @@ class OrderService {
                 "P.name as product_name",
 
                 "US.name as user_name",
-                "US.name as user_cpf",
+                "US.cpf as user_cpf",
 
                 "MP.name as payment_name"
             )

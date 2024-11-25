@@ -405,7 +405,7 @@ class PaymentsServices
 
                             "totalPrice" => $price * $productCart->qtd,
                             "quantity" => $productCart->qtd,
-                            "phrase" => $productCart->phrase,
+                            "phrase" => isset($productCart->phrase) ? $productCart->phrase : null,
                         ]);
 
                         $subTotal += $product->price * $productCart->qtd;

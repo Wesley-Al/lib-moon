@@ -30,6 +30,7 @@ class OrderService {
                 "P.name as product_name",
 
                 "US.name as user_name",
+                "US.name as user_cpf",
 
                 "MP.name as payment_name"
             )
@@ -66,6 +67,7 @@ class OrderService {
         $order = (object)[
             "id" => $dataOrder[0]->order_id,
             "user_name" => $dataOrder[0]->user_name,
+            "user_cpf" => $dataOrder[0]->user_cpf,
             "total" => NumberUtils::formatCurrency($dataOrder[0]->order_total),
             "subtotal" => NumberUtils::formatCurrency($dataOrder[0]->order_subtotal),
             "discont" => NumberUtils::formatCurrency($dataOrder[0]->order_subtotal - $total),

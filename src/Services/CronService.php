@@ -23,7 +23,7 @@ class CronService
             DB::beginTransaction();
 
             $updateAt = now();
-            $dateMin = DB::table("orders")->where("status", "=", OrderStatus::PENDENTE_PAGAMENTO)->min("create_at");
+            $dateMin = now()->subDays(30);
 
             $orders = DB::table("orders as O")
                 ->where("status", "=", OrderStatus::PENDENTE_PAGAMENTO)->get();

@@ -40,7 +40,7 @@ class PaymentsServices
             $order = DB::table('orders')->select(["charge_id", "total", "payment_status", "transaction_code", "reversed"])->where("id", "=", $orderId)->first();
             $paymentStatus = PaymentStatus::from($order->payment_status);
 
-            if ($paymentStatus == PaymentStatus::DISPONIVEL || $paymentStatus == PaymentStatus::PAGA) {
+            if ($paymentStatus == PaymentStatus::DISPONIVEL || $paymentStatus == PaymentStatus::PAGA || $paymentStatus == PaymentStatus::CANCELADA) {
                 $chargeId = $order->charge_id;
 
                 if ($chargeId == null) {

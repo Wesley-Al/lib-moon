@@ -191,7 +191,7 @@ class PaymentsServices
                         "variableName" => $product->variable_name,                        
                         "stockName" => $product->stock_name,
                         
-                        "phrase" => $productCart->phrase,
+                        "phrase" => isset($productCart->phrase) ? $productCart->phrase : null,
                         "quantity" => $productCart->qtd,
                         "total" => NumberUtils::calcPercent($product->price, $product->discont) * $productCart->qtd,
                         "subtotal" => $product->price * $productCart->qtd,
@@ -277,7 +277,7 @@ class PaymentsServices
                     "prod_name" => $product->prodName,
                     "variable_name" => $product->variableName,                        
                     "stock_name" => $product->stockName,
-                    "phrase" => $product->phrase,                        
+                    "phrase" => isset($product->phrase) ? $product->phrase : null,                        
                     
                     "quantity" => $product->quantity,
                     "total" => $product->total,

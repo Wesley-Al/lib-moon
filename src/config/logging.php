@@ -93,6 +93,13 @@ return [
         'replace_placeholders' => true,
     ],
 
+    'payloads' => [
+        'driver' => 'single',
+        'path' => storage_path('logs/payloads.log'),
+        'level' => env('LOG_LEVEL', 'debug'),
+        'replace_placeholders' => true,
+    ],
+
     'information' => [
         'driver' => 'single',
         'path' => storage_path('logs/info.log'),

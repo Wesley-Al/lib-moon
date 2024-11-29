@@ -382,6 +382,8 @@ class PaymentsServices
                 $total = 0;
                 $totalDiscont = 0;
 
+                Log::channel("payloads")->info('PaymentsServices.createOrder Produtos do carrinho: \n' . json_encode($listProducts->all()));
+
                 foreach ($listProducts->all() as $product) {
                     $productCart = $this->getProductPayload($product->stock_cod, $payload);
 

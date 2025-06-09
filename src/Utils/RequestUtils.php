@@ -10,7 +10,7 @@ class RequestUtils extends Utils
             return [
                 'headers' => [
                     'origin' => env("APP_URL"),
-                    'client_id' => env("CLIENT_ID"),
+                    'client-id' => env("CLIENT_ID"),
                     'Authorization' => "Bearer " . $token,
                     'Accept' => 'application/json',
                     'Content-Type' => 'application/json',

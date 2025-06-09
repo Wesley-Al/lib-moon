@@ -19,7 +19,7 @@ class PaymentsRepository
     function getPublicKey(): string
     {        
         $request = RequestUtils::createRequest($this->authRepository, null);
-        $response = $this->client->request('GET', $this->endpointPayments . "api/payments/public-key", $request);        
+        $response = $this->client->request('GET', $this->endpointPayments . "payments/public-key", $request);        
         
         return json_decode($response->getBody())->public_key;
     }
@@ -27,7 +27,7 @@ class PaymentsRepository
     function getPaymentByReferenceId($referenceId)
     {        
         $request = RequestUtils::createRequest($this->authRepository, null);
-        $response = $this->client->request('GET', $this->endpointPayments . "api/payments/" . $referenceId, $request);        
+        $response = $this->client->request('GET', $this->endpointPayments . "payments/" . $referenceId, $request);        
 
         return json_decode($response->getBody());
     }
@@ -38,7 +38,7 @@ class PaymentsRepository
         $dataMax = Carbon::parse($dataMax)->format("Y-m-d")."T".Carbon::parse($dataMax)->format("H:i:s");
         
         $request = RequestUtils::createRequest($this->authRepository, null);
-        $response = $this->client->request('GET', $this->endpointPayments . "api/payments/list?minDate=".$dataMin."&maxDate=".$dataMax, $request);        
+        $response = $this->client->request('GET', $this->endpointPayments . "payments/list?minDate=".$dataMin."&maxDate=".$dataMax, $request);        
 
         return json_decode($response->getBody());
     }
@@ -46,7 +46,7 @@ class PaymentsRepository
     function getOrderPayment($transactionCode)
     {        
         $request = RequestUtils::createRequest($this->authRepository, null);
-        $response = $this->client->request('GET', $this->endpointPayments . "api/payments/order/" . $transactionCode, $request);        
+        $response = $this->client->request('GET', $this->endpointPayments . "payments/order/" . $transactionCode, $request);        
 
         return json_decode($response->getBody());
     }    
@@ -54,7 +54,7 @@ class PaymentsRepository
     function createOrder($payload): stdClass
     {        
         $request = RequestUtils::createRequest($this->authRepository, json_encode($payload));
-        $response = $this->client->request('POST', $this->endpointPayments . "api/payments", $request);        
+        $response = $this->client->request('POST', $this->endpointPayments . "payments", $request);        
 
         if($response->getStatusCode() !== 200) {
             Log::channel("exception")->error("Ocorreu um erro na criação do pagamento. StatusCode: ". $response->getStatusCode() 
@@ -69,7 +69,7 @@ class PaymentsRepository
     function cancelOrder($payload): stdClass
     {
         $request = RequestUtils::createRequest($this->authRepository, json_encode($payload));
-        $response = $this->client->request('POST', $this->endpointPayments . "api/payments/cancel", $request);        
+        $response = $this->client->request('POST', $this->endpointPayments . "payments/cancel", $request);        
 
         if($response->getStatusCode() !== 200) {
             Log::channel("exception")->error("Ocorreu um erro no cancelamento do pagamento. StatusCode: ". $response->getStatusCode() 
@@ -84,7 +84,7 @@ class PaymentsRepository
     function getInstallmentsFees($payload): stdClass
     {
         $request = RequestUtils::createRequest($this->authRepository, json_encode($payload));
-        $response = $this->client->request('POST', $this->endpointPayments . "api/payments/fees", $request);        
+        $response = $this->client->request('POST', $this->endpointPayments . "payments/fees", $request);        
 
         if($response->getStatusCode() !== 200) {
             Log::channel("exception")->error("Ocorreu um erro na cotação de parcelas. StatusCode: ". $response->getStatusCode() 

@@ -16,7 +16,7 @@ class NotificationRepository
     public function getNotification($notificationCode) 
     {       
         $request = RequestUtils::createRequest($this->authRepository);        
-        $response = $this->client->request('GET', $this->endpointPayments . "api/notification/" . $notificationCode, $request);        
+        $response = $this->client->request('GET', $this->endpointPayments . "notification/" . $notificationCode, $request);        
 
         return json_decode($response->getBody());
     }    
